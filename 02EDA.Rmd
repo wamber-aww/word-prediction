@@ -1,0 +1,286 @@
+---
+title: "Part II: Exploratory Data Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+setwd('/Users/wamber/Documents/Projects/NLP/')
+```
+
+## Background
+
+This is an extension of the [Coursera Data Science Specialization Capstone Project](https://www.coursera.org/learn/data-science-project), 
+aimed at building a word prediction application. 
+The Capstone Dataset can be downloaded from [here](https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip)
+
+The second part is to perform exploratory data analysis, where we will look at the top most frequently used words and analyzed the word complexity from different sources.
+
+## Basics
+
+### 1. Packages
+```{r, message=F, warning=F}
+suppressMessages(library(quanteda))
+suppressMessages(library(reshape2))
+suppressMessages(library(ggplot2))
+suppressMessages(library(cowplot))
+suppressMessages(library(kableExtra))
+```
+
+### 2. Load processed data
+
+We can load the preprocessed corpus data from **Part I: Preprocessing**. Both the data with and without stop words are loaded and will be analyzed together to compare the differences.
+
+```{r}
+load("RData/corp_all.RData")
+load("RData/corp_sum.RData")
+load("RData/dfm1.RData")
+load("RData/dfm1_rm.RData")
+```
+
+## Word frequency
+
+We would first want to look at the ovrall distribution of words, in particular, the frequently used words in the English language. This can be accessed with `topfeatures()`
+
+### 1. Calculate frequencies of top 20 words
+
+We first extract the top 20 words from all sources and identify the frequencies from blogs, news, and twitters. Corpus with and without stop words are both used.
+
+  - With stop words
+```{r}
+topWordsAll <- topfeatures(dfm1, n = 20)
+  #find top 20 words in all sources
+topWordsBlog <- dfm1[1, names(topWordsAll)] 
+  #extract frequency of the same 20 words from blogs
+topWordsNews <- dfm1[2, names(topWordsAll)] 
+  #extract frequency of the same 20 words from news
+topWordsTwt <- dfm1[3, names(topWordsAll)] 
+  #extract frequency of the same 20 words from twitter
+```
+
+  - Without stop words
+```{r}
+# Extract top 20 words from each source
+topWordsTrimAll <- topfeatures(dfm1_rm, n = 20)
+  #find top 20 words in all sources
+topWordsTrimBlog <- dfm1_rm[1, names(topWordsTrimAll)] 
+  #extract frequency of the same 20 words from blogs
+topWordsTrimNews <- dfm1_rm[2, names(topWordsTrimAll)] 
+  #extract frequency of the same 20 words from news
+topWordsTrimTwt <- dfm1_rm[3, names(topWordsTrimAll)] 
+  #extract frequency of the same 20 words from twitter
+```
+
+### 2. Plot top 20 words from all sources
+
+  - Make data frame
+```{r}
+# with stop words
+gram1dist <- as.data.frame(topWordsAll)
+gram1dist <- cbind(gram1dist, 
+                   t(as.data.frame(topWordsBlog)[, -1]), 
+                   t(as.data.frame(topWordsNews)[, -1]), 
+                   t(as.data.frame(topWordsTwt)[, -1]))
+colnames(gram1dist) <- c('all', 'blogs', 'news', 'twitter')
+gram1dist$words <- row.names(gram1dist)
+
+# without stop words
+gram1distT <- as.data.frame(topWordsTrimAll)
+gram1distT <- cbind(gram1distT, 
+                   t(as.data.frame(topWordsTrimBlog)[, -1]), 
+                   t(as.data.frame(topWordsTrimNews)[, -1]), 
+                   t(as.data.frame(topWordsTrimTwt)[, -1]))
+colnames(gram1distT) <- c('all', 'blogs', 'news', 'twitter')
+gram1distT$words <- row.names(gram1distT)
+```
+
+  - Plot the word frequency from different sources
+```{r}
+df <- melt(gram1dist, id.vars = c('words', 'all')) #convert to long format
+p1 <- ggplot(data = df, aes(x = reorder(words, all), y = all)) +
+  geom_col(aes(fill = variable)) +
+  coord_flip() +
+  ylab('Frequency') + xlab('Top 20 words') +
+  scale_y_continuous(expand = c(0, 0)) +
+  guides(fill = guide_legend(title = 'Source')) +
+  theme(legend.position = 'top')
+
+df_rm <- melt(gram1distT, id.vars = c('words', 'all')) #convert to long format
+p2 <- ggplot(data = df_rm, aes(x = reorder(words, all), y = all)) +
+  geom_col(aes(fill = variable)) +
+  coord_flip() +
+  ylab('Frequency') + xlab('Top 20 words (without stop words)') +
+  scale_y_continuous(expand = c(0, 0)) +
+  guides(fill = guide_legend(title = 'Source')) +
+  theme(legend.position = 'top')
+
+print(plot_grid(p1, p2, labels = "AUTO"))
+```
+
+### 3. Calculate percentage for top 50 words
+
+Other than frequency, the more informative way is to look at the percentage of words used in the entire corpus. For this, we identify the top 50 most frequently used words, both including and excluding stop words. The change of percentage used v.s. frequency ranked can then be visualized.
+
+```{r}
+# with stop words
+topPerAll <- as.data.frame(topfeatures(dfm_weight(dfm1, scheme = "prop") * 100, n = 50))
+colnames(topPerAll) <- "pct"
+topPerAll$words <- row.names(topPerAll)
+topPerAll$rank <- seq(1, 50)
+
+# without stop words
+topPerTrim <- as.data.frame(topfeatures(dfm_weight(dfm1_rm, scheme = "prop") * 100, n = 50))
+colnames(topPerTrim) <- "pct"
+topPerTrim$words <- row.names(topPerTrim)
+topPerTrim$rank <- seq(1, 50)
+```
+
+### 4. Plot percentage of top 50 words
+
+```{r}
+# with stop words
+p1 <- ggplot(data = topPerAll, aes(x = rank, y = pct)) +
+  geom_point() + 
+  xlab("Rank") + ylab("Fequency (%)") +
+  theme_classic()
+
+# without stop words
+p2 <- ggplot(data = topPerTrim, aes(x = rank, y = pct)) +
+  geom_point() + 
+  xlab("Rank (without stop words)") + ylab("Fequency (%)") +
+  theme_classic()
+
+print(plot_grid(p1, p2, labels = "AUTO"))
+```
+
+Strikingly, after removal of stop words, the most frequent non stop word **just**, is only used 1.7%, while the most frequent stop word **the**, is used 14%!
+
+### 5. Visualizting with wordclouds
+
+We can also visualize the words that are used for at least 100 times in word counts.
+
+  - With stop words
+  
+```{r}
+textplot_wordcloud(dfm1, min_count = 100,
+                   color = c('#a6d854', '#e78ac3', '#8da0cb', '#fc8d62', '#66c2a5'))
+```
+
+  - Without stop words
+  
+```{r, message=FALSE, warning=FALSE}
+textplot_wordcloud(dfm1_rm, min_count = 100, 
+                   color = c('#a6d854', '#e78ac3', '#8da0cb', '#fc8d62', '#66c2a5'))
+```
+
+
+## Lexical variety
+
+### 1. Mean word frequency 
+
+`ntoken()` calculates the number of words in a corpus and `ntype()` calculates the size of the vocabulary, including possessive forms but excluding symbols, numbers, and punctuations. We can use use the ratio of the two to calculate the mean word frequencies, or rather, the ratio of total words (`ntoken()`) to unique words (`ntype()`) signifies the diversity of the vocabulary
+
+```{r}
+word_tot <- ntoken(corp_all)
+word_uniq <- ntype(corp_all)
+```
+
+This is a somewhat unintuitive measurement of lexical variation, since the larger the mean word frequency is, the more words are used for a given unique words, indicating the less diverse the corpus is.
+
+```{r}
+lexVar <- data.frame(Source = c("Blogs", "News", "Twitter"),
+                     MWF = word_tot/word_uniq)
+lexVar %>% kable("html") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+p1 <- ggplot(lexVar, aes(x = Source, y = MWF, fill = Source)) +
+  geom_col() +
+  guides(fill = FALSE) +
+  scale_y_continuous(expand = c(0, 0)) +
+  ylab('Mean word frequency') +
+  theme_classic()
+
+lexVar$Scale <- lexVar$MWF %>% scale()
+
+p2 <- ggplot(lexVar, aes(x = Source, y = Scale, fill = Source)) +
+  geom_col() +
+  geom_hline(aes(yintercept = 0), color = "black", linetype = "dashed") +
+  guides(fill = FALSE) +
+  scale_y_continuous(expand = c(0, 0)) +
+  ylab('Scaled mean word frequency') +
+  theme_classic()
+
+print(plot_grid(p1, p2, labels = "AUTO"))
+```
+
+As shown in the table and figure, it seems that news has the lowest lexical variety, while Twitter the most. This could be due to the wide range of topics covered on Tiwtter, as well as the special words, abbreviations, hypens, hashtags, slangs, etc., used on the platform
+
+### 2. Type-token ration (TTR)
+
+On the other hand, if we calculate the ratio of unique words (`ntype()`) to total words (`ntoken()`), we would obtain TTR. A high TTR indicates a high lexical variation, while a low TTR suggests the opposite. TTR falls between 0 and 1, since you would never have more unique words than total words. 
+
+```{r}
+full_TTR <- dfm1 %>% textstat_lexdiv(measure = "TTR")
+full_TTR$Source <- c("Blog", "News", "Twitter")
+rm_TTR <- dfm1_rm %>% textstat_lexdiv(measure = "TTR")
+rm_TTR$Source <- c("Blog", "News", "Twitter")
+```
+
+Similar to the mean word frequency results shown above, Twitter still has the highest TTR, suggesting the highest degree of lexical variaty. This is true even after removing stop words
+
+```{r}
+p1 <- ggplot(full_TTR, aes(x = Source, y = TTR, fill = Source)) +
+  geom_col() +
+  guides(fill = FALSE) +
+  scale_y_continuous(expand = c(0, 0)) +
+  ylab('Type-token ratio') +
+  theme_classic()
+
+p2 <- ggplot(rm_TTR, aes(x = Source, y = TTR, fill = Source)) +
+  geom_col() +
+  guides(fill = FALSE) +
+  scale_y_continuous(expand = c(0, 0)) +
+  ylab('Type-token ratio (without stop words)') +
+  theme_classic()
+
+print(plot_grid(p1, p2, labels = "AUTO"))
+```
+
+### 3. Hapax richness
+
+The Hapax richness is defined by the number of words that occur only once and divide that by the total number of words. To find the number of word frequency that is one, we can simply use `dfm == 1` and sum up the number of rows. The total number of words can be calculated with `ntoken()`  
+
+```{r}
+hr <- data.frame(rowSums(dfm1 == 1) / ntoken(dfm1))
+hr$Source <- c("Blog", "News", "Twitter")
+colnames(hr) <- c("Hap", "Source")
+
+hr_rm <- data.frame(rowSums(dfm1_rm == 1) / ntoken(dfm1_rm))
+hr_rm$Source <- c("Blog", "News", "Twitter")
+colnames(hr_rm) <- c("Hap", "Source")
+```
+
+Similar to the mean word frequency and TTR results, Twitter shows the highest Hapax richness, indicating the most lexical variaty. The same trend is observed after stop word removal
+
+```{r}
+p1 <- ggplot(hr, aes(x = Source, y = Hap, fill = Source)) +
+  geom_col() +
+  guides(fill = FALSE) +
+  scale_y_continuous(expand = c(0, 0)) +
+  ylab('Hapax richness') +
+  theme_classic()
+
+p2 <- ggplot(hr_rm, aes(x = Source, y = Hap, fill = Source)) +
+  geom_col() +
+  guides(fill = FALSE) +
+  scale_y_continuous(expand = c(0, 0)) +
+  ylab('Hapax richness (without stop words)') +
+  theme_classic()
+
+print(plot_grid(p1, p2, labels = "AUTO"))
+```
+
+## References
+
+  1. [quanteda](https://docs.quanteda.io/articles/pkgdown/replication/digital-humanities.html#token-distribution-analysis)
+  2. [Type-token Ratios in One Teacher's Classroom Talk: An Investigation of Lexical Complexity. Dax Thomas. 2005](https://www.birmingham.ac.uk/Documents/college-artslaw/cels/essays/languageteaching/DaxThomas2005a.pdf)
