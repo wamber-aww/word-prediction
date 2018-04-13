@@ -14,3 +14,9 @@ The `writeup` files are the knitted html files; the original markdown files are 
 Clean up the corpus with tokenization, profanity filter, word stemming, and stop word removal
 
   - [Writeup](https://wamber-aww.github.io/word-prediction/01Prep.html)
+
+### Task 2: Exploratory Data Analysis
+
+Identify commonly used words and analyze lexical variety from different sources
+
+  - [Writeup](https://wamber-aww.github.io/word-prediction/02EDA.html)
